@@ -40,6 +40,7 @@ use percipiolondon\typesense\variables\TypesenseVariable;
 use Typesense\Exceptions\ObjectNotFound;
 use Typesense\Exceptions\ServerError;
 use yii\base\Event;
+use yii\helpers\ArrayHelper;
 
 /**
  * Craft plugins are very much like little applications in and of themselves. We’ve made
@@ -149,9 +150,9 @@ class Typesense extends Plugin
      * @inheritdoc
      */
     //    public function getSettings()
-//    {
-//        return parent::getSettings();
-//    }
+    //    {
+    //        return parent::getSettings();
+    //    }
 
     /**
      * @inheritdoc
@@ -187,11 +188,11 @@ class Typesense extends Plugin
         }
 
         //        if (Craft::$app->getUser()->checkPermission('typesense:collections')) {
-//            $subNavs['documents'] = [
-//                'label' => Craft::t('typesense', 'Documents'),
-//                'url' => 'typesense/documents',
-//            ];
-//        }
+        //            $subNavs['documents'] = [
+        //                'label' => Craft::t('typesense', 'Documents'),
+        //                'url' => 'typesense/documents',
+        //            ];
+        //        }
 
         $editableSettings = true;
         // Check against allowAdminChanges
@@ -366,7 +367,7 @@ class Typesense extends Plugin
                     $this->_afterSave($element);
 
                     if ($event->name === Elements::EVENT_AFTER_RESTORE_ELEMENT) {
-                        foreach($element->getSupportedSites() as $site) {
+                        foreach ($element->getSupportedSites() as $site) {
                             if ($site['siteId'] ?? null) {
                                 $entry = Entry::find()->id($element->id)->siteId($site['siteId'])->one();
                                 $this->_afterSave($entry);
@@ -457,7 +458,12 @@ class Typesense extends Plugin
                 Craft::info('Typesense edit / add / delete document based of: ' . $entry->title, __METHOD__);
 
                 try {
-                    self::$plugin->getClient()->client()->collections[$collection->indexName]->documents->upsert($resolver);
+                    // if only one document, convert to array for import() method
+                    if (ArrayHelper::isAssociative($resolver)) {
+                        $resolver = [$resolver];
+                    }
+
+                    self::$plugin->getClient()->client()->collections[$collection->indexName]->documents->import($resolver, ['action' => 'upsert', 'return_id' => true]);
                 } catch (ObjectNotFound | ServerError $e) {
                     Craft::$app->session->setFlash('error', Craft::t('typesense', 'There was an issue saving your action, check the logs for more info'));
                     Craft::error($e->getMessage(), __METHOD__);
@@ -466,8 +472,13 @@ class Typesense extends Plugin
         } else {
             // element is disabled --> delete from Typesense
             if ($resolver) {
-                Craft::info('Typesense delete document based of: ' . $entry->title, __METHOD__);
-                self::$plugin->getClient()->client()->collections[$collection->indexName]->documents->delete(['filter_by' => 'id: ' . $resolver['id']]);
+                Craft::info('Typesense delete documents for entry: ' . $entry->title, __METHOD__);
+
+                if (ArrayHelper::isAssociative($resolver)) {
+                    $resolver = [$resolver];
+                }
+
+                self::$plugin->getClient()->client()->collections[$collection->indexName]->documents->delete(['filter_by' => 'entry_id: ' . $resolver[0]['entry_id']]);
             }
         }
     }

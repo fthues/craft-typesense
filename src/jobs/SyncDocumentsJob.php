@@ -16,6 +16,8 @@ use craft\queue\BaseJob;
 use percipiolondon\typesense\helpers\CollectionHelper;
 use percipiolondon\typesense\Typesense;
 
+use yii\helpers\ArrayHelper;
+
 /**
  * TypesenseTask job
  *
@@ -58,12 +60,14 @@ class SyncDocumentsJob extends BaseJob
 
             // delete collections if the action is flush
             if ($collectionTypesense !== [] && $this->criteria['type'] === 'Flush') {
+                ray('deleting collection', $this->criteria['index']);
                 Typesense::$plugin->getClient()->client()?->collections[$this->criteria['index']]->delete();
                 $collectionTypesense = null;
             }
 
             //create a new schema if a collection has been flushed
             if (!$collectionTypesense) {
+                ray('creating collection', $collection->schema);
                 $collectionTypesense = $client->collections->create($collection->schema);
             }
 
@@ -73,15 +77,29 @@ class SyncDocumentsJob extends BaseJob
 
                 //fetch each document of entry to update
                 foreach ($entries as $i => $entry) {
-
+                    ray($entry->title);
                     $resolver = $collection->schema['resolver']($entry);
 
-                    if ($resolver) {
-                        $doc = $client->collections[$this->criteria['index']]
-                            ->documents
-                            ->upsert($resolver);
+                    ray($resolver);
 
-                        $upsertIds[] = $doc['id'];
+                    if ($resolver) {
+                        if (ArrayHelper::isAssociative($resolver)) {
+                            $resolver = [$resolver];
+                        }
+
+                        // $doc = $client->collections[$this->criteria['index']]
+                        //     ->documents
+                        //     ->upsert($resolver);
+
+                        $docs = $client->collections[$this->criteria['index']]
+                            ->documents
+                            ->import($resolver, ['action' => 'upsert', 'return_id' => true]);
+
+                        ray($docs);
+
+                        foreach ($docs as $doc) {
+                            $upsertIds[] = $doc['id'];
+                        }
                     }
 
                     $this->setProgress(

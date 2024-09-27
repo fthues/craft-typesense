@@ -87,10 +87,6 @@ class SyncDocumentsJob extends BaseJob
                             $resolver = [$resolver];
                         }
 
-                        // $doc = $client->collections[$this->criteria['index']]
-                        //     ->documents
-                        //     ->upsert($resolver);
-
                         $docs = $client->collections[$this->criteria['index']]
                             ->documents
                             ->import($resolver, ['action' => 'upsert', 'return_id' => true]);

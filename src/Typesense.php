@@ -410,10 +410,13 @@ class Typesense extends Plugin
 
                 if ($collection) {
                     $resolver = $collection->schema['resolver']($entry);
+                    if (ArrayHelper::isAssociative($resolver)) {
+                        $resolver = [$resolver];
+                    }
                 }
 
                 if ($resolver) {
-                    self::$plugin->getClient()->client()->collections[$collection->indexName]->documents->delete(['filter_by' => 'id: ' . $resolver['id']]);
+                    self::$plugin->getClient()->client()->collections[$collection->indexName]->documents->delete(['filter_by' => 'entry_id: ' . $resolver[0]['entry_id']]);
                 }
             }
         );
